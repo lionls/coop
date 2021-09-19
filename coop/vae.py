@@ -79,7 +79,8 @@ class VAE(nn.Module):
                  z: torch.Tensor,
                  num_beams: int = 4,
                  max_tokens: int = 256,
-                 bad_words: Union[str, List[str], List[int]] = None):
+                 bad_words: Union[str, List[str], List[int]] = None,
+                 keywords = None):
         if z.dim() == 1:
             z = z.unsqueeze(0)
 
@@ -97,4 +98,5 @@ class VAE(nn.Module):
             z=z,
             num_beams=num_beams,
             max_tokens=max_tokens,
-            bad_words_ids=bad_words_ids))
+            bad_words_ids=bad_words_ids,
+            keywords=keywords))

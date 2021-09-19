@@ -72,10 +72,15 @@ class Optimus(Model):
                  z: torch.Tensor,
                  num_beams: int = 4,
                  max_tokens: int = 256,
-                 bad_words_ids: List[int] = None):
+                 bad_words_ids: List[int] = None,
+                 keywords = None):
         bz, _ = z.size()
 
         input_ids = z.new_full((bz, 1), dtype=torch.long, fill_value=self.bos_id)
+        if keywords:
+            k = torch.LongTensor(keywords)
+            input_ids = torch.cat((input_ids,k.repeat(bz,1)), dim=1)
+            
         generated = self.decoder.generate(
             input_ids,
             max_length=max_tokens,
