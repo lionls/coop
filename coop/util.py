@@ -6,7 +6,7 @@ from pathlib import Path
 import rouge
 
 from .models import BiMeanVAE, Optimus
-from .reader import ReviewDataset, ReviewTest, OptimusDataset, OptimusTest
+from .reader import ReviewDataset, ReviewTest, OptimusDataset, OptimusTest, OptimusKeywordDataset
 from .tokenizer import Tokenizer, SpmTokenizer, BERTTokenizer, GPT2Tokenizer
 
 R1 = rouge.Rouge(metrics=["rouge-n"], max_n=1, limit_length=False, apply_avg=True, stemming=True,
@@ -44,6 +44,9 @@ def load_tokenizer(config: dict):
     if model_type == "optimus":
         src_tokenizer = BERTTokenizer(config.get("device"))
         tgt_tokenizer = GPT2Tokenizer(config.get("device"))
+    elif model_type == "optimuskeyword":
+        src_tokenizer = BERTTokenizer(config.get("device"))
+        tgt_tokenizer = GPT2Tokenizer(config.get("device"))
     else:
         src_tokenizer = tgt_tokenizer = SpmTokenizer(config["spm_path"], config.get("device"))
         config["model"]["vocab_size"] = src_tokenizer.vocab_size
@@ -60,6 +63,10 @@ def load_data(config: dict, src_tokenizer: Tokenizer, tgt_tokenizer: Tokenizer =
         train = OptimusDataset(data_dir / "train.jsonl", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
         dev = OptimusTest(data_dir / "dev.json", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
         test = OptimusTest(data_dir / "test.json", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
+    elif model_type == "optimuskeyword":
+        train = OptimusKeywordDataset(data_dir / "train_keyword.jsonl", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
+        dev = OptimusTest(data_dir / "dev.json", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
+        test = OptimusTest(data_dir / "test.json", src_tokenizer=src_tokenizer, tgt_tokenizer=tgt_tokenizer)
     else:
         train = ReviewDataset(data_dir / "train.jsonl", tokenizer=src_tokenizer)
         dev = ReviewTest(data_dir / "dev.json", tokenizer=src_tokenizer)
@@ -73,6 +80,8 @@ def build_model(config: dict):
     if model_type == "bimeanvae":
         cls = BiMeanVAE
     elif model_type == "optimus":
+        cls = Optimus
+    elif model_type == "optimuskeyword":
         cls = Optimus
     else:
         raise ValueError(f"Model type {model_type} is not available.")

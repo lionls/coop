@@ -19,6 +19,13 @@
             "free_bit": free_bit,
         },
 
+    OptimusKeyword(latent_dim, free_bit)::
+        {
+            "type": "optimuskeyword",
+            "latent_dim": latent_dim,
+            "free_bit": free_bit,
+        },
+
     VAETrainer(num_steps, checkout_step, batch_size, lr)::
         {
             "num_steps": num_steps,

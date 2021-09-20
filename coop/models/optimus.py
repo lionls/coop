@@ -39,6 +39,7 @@ class Optimus(Model):
                 tgt: Dict[str, torch.Tensor] = None,
                 do_generate: torch.Tensor = False,
                 num_beams: int = 4,
+                keywords = None,
                 **kwargs):
         cls_vec = self.encoder(**src).pooler_output
         mu, log_var = torch.chunk(self.proj(cls_vec), chunks=2, dim=-1)
@@ -80,7 +81,7 @@ class Optimus(Model):
         if keywords:
             k = torch.LongTensor(keywords)
             input_ids = torch.cat((input_ids,k.repeat(bz,1)), dim=1)
-            
+
         generated = self.decoder.generate(
             input_ids,
             max_length=max_tokens,

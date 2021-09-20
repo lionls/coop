@@ -63,13 +63,44 @@ class OptimusDataset(Dataset):
         return self.len
 
     def __getitem__(self, idx):
-        x = json.loads(linecache.getline(self.data_file, idx + 1))["text"]
+        x = json.loads(linecache.getline(self.data_file, idx + 1))["text"]  
         return x
 
     def collate_fn(self, data: List[str]):
         src = self.src_tokenizer(data,)
         tgt = self.tgt_tokenizer(data)
         return {"src": src, "tgt": tgt, "reviews": data}
+
+class OptimusKeywordDataset(Dataset):
+    def __init__(self,
+                 data_file,
+                 src_tokenizer: Tokenizer,
+                 tgt_tokenizer: Tokenizer):
+        super().__init__()
+        assert Path(data_file).exists(), f"Data directory, {data_file}, does not exist."
+        self.data_file = str(data_file)
+        self.pad, self.bos, self.eos = '<PAD>', '<BOS>', '<EOS>'
+
+        self.src_tokenizer = src_tokenizer
+        self.tgt_tokenizer = self.tokenizer = tgt_tokenizer
+
+        self.len = get_length(data_file)
+
+    def __len__(self):
+        return self.len
+
+    def __getitem__(self, idx):
+        x = json.loads(linecache.getline(self.data_file, idx + 1))
+        return ("~"+x["keyword"]+"~@"+x["text"],"~"+x["keyword"]+"~@")
+
+    def collate_fn(self, data):
+        text, key=zip(*data)
+        text = list(text)
+        key = list(key)
+        src = self.src_tokenizer(text,)
+        tgt = self.tgt_tokenizer(text)
+        z = self.tgt_tokenizer(key)
+        return {"src": src, "tgt": tgt, "reviews": text, "keywords": z, "keywordsText": key}
 
 
 class ReviewTest(Dataset):
