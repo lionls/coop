@@ -2,7 +2,7 @@ import logging
 import sys
 from itertools import chain, combinations
 from pathlib import Path
-
+import torch
 import rouge
 
 from .models import BiMeanVAE, Optimus
@@ -83,6 +83,9 @@ def build_model(config: dict):
         cls = Optimus
     elif model_type == "optimuskeyword":
         cls = Optimus
+        model_dir = Path("data/optimus-amzn")
+        model_path = model_dir / "pytorch_model.bin"
+        cls.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))
     else:
         raise ValueError(f"Model type {model_type} is not available.")
     return cls(**config.pop("model"))
