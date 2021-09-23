@@ -10,6 +10,7 @@ from .util import Losses, VAEOut
 PAD, BOS, EOS = '<PAD>', '<BOS>', '<EOS>'
 SPECIAL = {'pad_token': PAD, 'bos_token': BOS, 'eos_token': EOS}
 
+from train import OFFLINE
 
 class Optimus(Model):
     def __init__(self,
@@ -18,10 +19,17 @@ class Optimus(Model):
                  bos_id: int,
                  eos_id: int,
                  free_bit: float = 0.05):
-        encoder = BertModel.from_pretrained("bert-base-cased", return_dict=True)
+                
+        if OFFLINE:
+            encoder = BertModel.from_pretrained("data/bert-base-cased", return_dict=True)
+        else:
+            encoder = BertModel.from_pretrained("bert-base-cased", return_dict=True)
         super().__init__(encoder.config.hidden_size, latent_dim)
         self.encoder = encoder
-        self.decoder = OptimusDecoder.from_pretrained("gpt2", latent_dim=latent_dim, pad_id=pad_id, return_dict=True)
+        if OFFLINE:
+            self.decoder = OptimusDecoder.from_pretrained("data/gpt2", latent_dim=latent_dim, pad_id=pad_id, return_dict=True)
+        else:
+            self.decoder = OptimusDecoder.from_pretrained("gpt2", latent_dim=latent_dim, pad_id=pad_id, return_dict=True)
         self.decoder.resize_token_embeddings(self.decoder.config.vocab_size + len(SPECIAL))
 
         self.latent_dim = latent_dim

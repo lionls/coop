@@ -6,6 +6,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from transformers import BertTokenizerFast, GPT2TokenizerFast
 
+from train import OFFLINE
 
 class Tokenizer:
     def __init__(self, device: str = None):
@@ -82,7 +83,11 @@ class SpmTokenizer(Tokenizer):
 class BERTTokenizer(Tokenizer):
     def __init__(self, device: str = None):
         super().__init__(device)
-        self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-cased")
+        if OFFLINE:
+            self.tokenizer = BertTokenizerFast.from_pretrained("data/bert-base-cased")
+        else:
+            self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-cased")
+        
 
     def __call__(self, reviews: Union[List[str], str]):
         if isinstance(reviews, str):
@@ -110,7 +115,13 @@ class GPT2Tokenizer(Tokenizer):
         super().__init__(device)
         self.pad, self.bos, self.eos = '<PAD>', '<BOS>', '<EOS>'
         sp = {'pad_token': self.pad, 'bos_token': self.bos, 'eos_token': self.eos}
-        self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+        if OFFLINE:
+            self.tokenizer = GPT2TokenizerFast.from_pretrained("data/gpt2")
+        else:
+            self.tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+        
         self.tokenizer.add_special_tokens(sp)
 
     def __call__(self, reviews: Union[List[str], str]):

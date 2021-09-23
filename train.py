@@ -21,6 +21,8 @@ from coop.models import Model, BiMeanVAE, Optimus
 from coop.util import get_logger, load_tokenizer, load_data, build_model
 from evaluate import evaluate
 
+OFFLINE = True
+
 
 class Trainer:
     def __init__(self,
@@ -69,7 +71,9 @@ class Trainer:
         tokenizers = load_tokenizer(config)
         data = load_data(config, *tokenizers)
         model = build_model(config)
-
+        model_dir = Path("data/optimus-amzn")
+        model_path = model_dir / "pytorch_model.bin"
+        model.load_state_dict(torch.load(model_path, map_location=lambda storage, loc: storage))   
         return cls(model, data, log_dir, **config.pop("trainer"))
 
     def _fit_partial(self,
