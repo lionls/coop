@@ -6,7 +6,6 @@ from torch.nn.utils.rnn import pad_sequence
 
 from transformers import BertTokenizerFast, GPT2TokenizerFast
 
-from train import OFFLINE
 
 class Tokenizer:
     def __init__(self, device: str = None):
