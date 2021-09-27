@@ -10,6 +10,7 @@ from .util import Losses, VAEOut
 PAD, BOS, EOS = '<PAD>', '<BOS>', '<EOS>'
 SPECIAL = {'pad_token': PAD, 'bos_token': BOS, 'eos_token': EOS}
 
+OFFLINE=False
 
 class Optimus(Model):
     def __init__(self,
