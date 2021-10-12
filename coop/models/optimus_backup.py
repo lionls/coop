@@ -199,8 +199,6 @@ class Attention(nn.Module):
         return x.view(*new_x_shape)  # in Tensorflow implem: fct merge_states
 
     def split_heads(self, x, k=False):
-        #print(x)
-        #print(x.size())
         new_x_shape = x.size()[:-1] + (self.n_head, x.size(-1) // self.n_head)
         x = x.view(*new_x_shape)  # in Tensorflow implem: fct split_states
         if k:
@@ -218,7 +216,6 @@ class Attention(nn.Module):
             encoder_attention_mask=None,
             use_cache=False,
             output_attentions=False,
-            pertPast = False,
     ):
         if encoder_hidden_states is not None:
             assert hasattr(
@@ -235,14 +232,10 @@ class Attention(nn.Module):
         value = self.split_heads(value)
         if layer_past is not None:
             # https://github.com/ChunyuanLI/Optimus/blob/master/code/pytorch_transformers/modeling_gpt2.py#L189-L196
-            
-            if not pertPast:
-                past_key, past_value = layer_past[0][0], layer_past[0][1]  # transpose back cf below
-                past_key = self.split_heads(past_key, k=True)
-                past_value = self.split_heads(past_value)
-            else:
-                past_key, past_value = layer_past[0].transpose(-2, -1), layer_past[1]  # transpose back cf below
+            past_key, past_value = layer_past[0][0], layer_past[0][1]  # transpose back cf below
 
+            past_key = self.split_heads(past_key, k=True)
+            past_value = self.split_heads(past_value)
             key = torch.cat((past_key, key), dim=-1)
             value = torch.cat((past_value, value), dim=-2)
 
@@ -285,7 +278,6 @@ class Block(nn.Module):
             encoder_attention_mask=None,
             use_cache=False,
             output_attentions=False,
-            pertPast=False,
     ):
         attn_outputs = self.attn(
             self.ln_1(hidden_states),
@@ -294,7 +286,6 @@ class Block(nn.Module):
             head_mask=head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            pertPast=pertPast,
         )
         attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
@@ -374,7 +365,6 @@ class OptimusGPT2(GPT2PreTrainedModel):
             return_dict=None,
             latent_as_gpt_emb=False,
             latent_as_gpt_memory=False,
-            pertPast=False,
             **kwargs,
     ):
         if "past" in kwargs:
@@ -521,7 +511,6 @@ class OptimusGPT2(GPT2PreTrainedModel):
                     encoder_attention_mask=encoder_attention_mask,
                     use_cache=use_cache,
                     output_attentions=output_attentions,
-                    pertPast=pertPast,
                 )
 
             hidden_states, present = outputs[:2]
@@ -605,7 +594,7 @@ class OptimusDecoder(GPT2PreTrainedModel):
             return_dict=None,
             latent_as_gpt_emb=False,
             latent_as_gpt_memory=False,
-            pertPast=False,
+            return_PPLM=None,
             **kwargs,
     ):
         r"""
@@ -641,7 +630,6 @@ class OptimusDecoder(GPT2PreTrainedModel):
             return_dict=return_dict,
             latent_as_gpt_emb=latent_as_gpt_emb,
             latent_as_gpt_memory=latent_as_gpt_memory,
-            pertPast=pertPast,
         )
         hidden_states = transformer_outputs[0]
 
@@ -661,6 +649,9 @@ class OptimusDecoder(GPT2PreTrainedModel):
         if not return_dict:
             output = (lm_logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
+
+        if not return_PPLM:
+            return (lm_logits, past_key_values, transformer_outputs.hidden_states)
 
         return CausalLMOutputWithPast(
             loss=loss,

@@ -37,10 +37,7 @@ echo >> $LOGFILE
 qstat -f $PBS_JOBID >> $LOGFILE
 
 conda create -c http://conda.repo.test.hhu.de/bioconda -c http://conda.repo.test.hhu.de/main -c http://conda.repo.test.hhu.de/conda-forge --override-channels --name my_environment python=3.6
-
 conda activate my_environment
-
-
 conda install -c http://conda.repo.test.hhu.de/bioconda -c http://conda.repo.test.hhu.de/main -c http://conda.repo.test.hhu.de/conda-forge --override-channels jsonnet
 
 
