@@ -29,19 +29,19 @@ class VAE(nn.Module):
         # Find the model path
         if Path(model_name_or_path).exists():
 
-            config = json.load(open("config.json"))
-            config["device"] = self.device
+            #config = json.load(open("config.json"))
+            #config["device"] = self.device
             model_path = "pytorch_model.bin"
             # tempdir = tempfile.mkdtemp()
             # try:
             #     # Extract archive
             #     with tarfile.open(model_name_or_path, "r:gz") as archive:
             #         archive.extractall(tempdir)
-            #     model_dir = Path(tempdir)
+            model_dir = Path(model_name_or_path)
             #     # Load model
-            #     config = json.load(open(model_dir / "config.json"))
+            config = json.load(open(model_dir / "config.json"))
             #     config["device"] = self.device
-            #     model_path = model_dir / "pytorch_model.bin"
+            model_path = model_dir / "pytorch_model.bin"
 
             # finally:
             #     # Clean-up
