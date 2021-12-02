@@ -173,8 +173,9 @@ class BiMeanVAE(Model):
                  z: torch.Tensor,
                  num_beams: int = 4,
                  max_tokens: int = 256,
-                 bad_words_ids: List[int] = None):
-        self.eval()
+                 bad_words_ids: List[int] = None,
+                 with_grad=False):
+        torch.set_grad_enabled(with_grad)
         if bad_words_ids:
             self.bad_words.update(bad_words_ids)
         bz, device = len(z), z.device

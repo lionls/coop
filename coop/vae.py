@@ -78,14 +78,16 @@ class VAE(nn.Module):
         src = self.src_tokenizer(reviews)
         return self.model(src).q.loc
 
-    @torch.no_grad()
+    #@torch.no_grad()
     def generate(self,
                  z: torch.Tensor,
                  num_beams: int = 4,
                  max_tokens: int = 256,
                  bad_words: Union[str, List[str], List[int]] = None,
                  keywords = None,
-                 perturb=False):
+                 perturb=False,
+                 with_grad=False):
+        torch.set_grad_enabled(with_grad)
         if z.dim() == 1:
             z = z.unsqueeze(0)
 
@@ -104,8 +106,9 @@ class VAE(nn.Module):
                 z=z,
                 num_beams=num_beams,
                 max_tokens=max_tokens,
-                bad_words_ids=bad_words_ids))
-                
+                bad_words_ids=bad_words_ids,
+                with_grad=with_grad))
+
         if keywords is not None:
             return self.tgt_tokenizers.decode(self.model.generate(
                 z=z,
