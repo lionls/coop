@@ -198,68 +198,67 @@ class BiMeanVAE(Model):
         return Variable(x, requires_grad=requires_grad, volatile=volatile)
 
     def perturb(self, last_predictions, state, unpert_log, num_iterations=3, stepsize=0.1, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {}):
-        z = state["z"]
-        hx = state["hx"]
-        cx = state["cx"]
-        grad_accumulator = [
-                (np.zeros(p.shape).astype("float32"))
-                for p in z
-            ]
-        grad_clean = np.zeros(z.shape).astype("float32")
-
-        accumulated_hidden = 0
-        loss_per_iter = []
-        new_accumulated_hidden = None
-
-        curr = self.to_var(torch.from_numpy(z.cpu().detach().numpy()),requires_grad=True, device=device)
-
-        for i in range(num_iterations):
-                print("Iteration ", i + 1)
-                curr_perturbation = [
-                    self.to_var(torch.from_numpy(p_), requires_grad=True, device=device)
-                    for p_ in grad_accumulator
+        torch.set_grad_enabled(True)
+        with torch.enable_grad():
+            z = state["z"]
+            hx = state["hx"]
+            cx = state["cx"]
+            grad_accumulator = [
+                    (np.zeros(p.shape).astype("float32"))
+                    for p in z
                 ]
+            grad_clean = np.zeros(z.shape).astype("float32")
 
-                curr_length=1
+            accumulated_hidden = 0
+            loss_per_iter = []
+            new_accumulated_hidden = None
 
-                hx, cx = self.decoder(torch.cat((self.embed(last_predictions), curr), dim=-1), (hx, cx))
-                log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)
-                
+            curr = self.to_var(torch.from_numpy(z.cpu().detach().numpy()),requires_grad=True, device=device)
 
-                loss = 0.0
-                loss_list = []
-                if True:#loss_type == PPLM_BOW or loss_type == PPLM_BOW_DISCRIM:
-                    for one_hot_bow in self.one_hot_bows_vectors:
-                        bow_logits = torch.mm(log_softmax, torch.t(one_hot_bow))
-                        bow_loss = -torch.log(-torch.sum(bow_logits))
-                        loss += bow_loss
-                        loss_list.append(bow_loss)
-                        print(" pplm_bow_loss:", loss.data.cpu().numpy())
+            for i in range(num_iterations):
+                    #print("Iteration ", i + 1)
+                    curr_perturbation = [
+                        self.to_var(torch.from_numpy(p_), requires_grad=True, device=device)
+                        for p_ in grad_accumulator
+                    ]
 
-                kl_loss = 0.0
-                if kl_scale > 0.0:
-                    unpert_probs = (
-                            unpert_log + self.SMALL_CONST *
-                            (unpert_log <= self.SMALL_CONST).float().to(device).detach()
-                    )
-                    correction = self.SMALL_CONST * (log_softmax <= self.SMALL_CONST).float().to(
-                        device).detach()
-                    corrected_probs = log_softmax + correction.detach()
-                    kl_loss = kl_scale * (
-                        (corrected_probs * (corrected_probs / unpert_probs).log()).sum()
-                    )
+                    hx, cx = self.decoder(torch.cat((self.embed(last_predictions), curr), dim=-1), (hx, cx))
+                    log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)               
+
+                    loss = 0.0
+                    loss_list = []
+                    if True:#loss_type == PPLM_BOW or loss_type == PPLM_BOW_DISCRIM:
+                        for one_hot_bow in self.one_hot_bows_vectors:
+                            bow_logits = torch.mm(log_softmax, torch.t(one_hot_bow))
+                            bow_loss = -torch.log(-torch.sum(bow_logits))
+                            loss += bow_loss
+                            loss_list.append(bow_loss)
+                            #print(" pplm_bow_loss:", loss.data.cpu().numpy())
+
+                    kl_loss = 0.0
+                    if kl_scale > 0.0:
+                        unpert_probs = (
+                                unpert_log + self.SMALL_CONST *
+                                (unpert_log <= self.SMALL_CONST).float().to(device).detach()
+                        )
+                        correction = self.SMALL_CONST * (log_softmax <= self.SMALL_CONST).float().to(
+                            device).detach()
+                        corrected_probs = log_softmax + correction.detach()
+                        kl_loss = kl_scale * (
+                            (corrected_probs * (corrected_probs / unpert_probs).log()).sum()
+                        )
+                        
+                        #print(' kl_loss', kl_loss.data.cpu().numpy())
+                        loss += kl_loss
+
+                    loss_per_iter.append(loss.data.cpu().numpy())
                     
-                    print(' kl_loss', kl_loss.data.cpu().numpy())
-                    loss += kl_loss
+                    loss.backward(retain_graph=True)
+                    grad = -stepsize *curr.grad.data.cpu().detach().numpy()
+                    curr = self.to_var(torch.from_numpy(curr.cpu().detach().numpy()+grad),requires_grad=True, device=device)
 
-                loss_per_iter.append(loss.data.cpu().numpy())
-                
-                loss.backward(retain_graph=True)
-                grad = -stepsize *curr.grad.data.cpu().detach().numpy()
-                curr = self.to_var(torch.from_numpy(curr.cpu().detach().numpy()+grad),requires_grad=True, device=device)
-
-        new_state = {"z":z, "hx":hx, "cx":cx}
-        return log_softmax, new_state
+            new_state = {"z":z, "hx":hx, "cx":cx}
+            return log_softmax, new_state
 
     def stepPerturb(self,
              last_predictions,

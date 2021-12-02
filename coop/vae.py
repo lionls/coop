@@ -122,3 +122,48 @@ class VAE(nn.Module):
                 num_beams=num_beams,
                 max_tokens=max_tokens,
                 bad_words_ids=bad_words_ids))
+
+    def generateGrad(self,
+                 z: torch.Tensor,
+                 num_beams: int = 4,
+                 max_tokens: int = 256,
+                 bad_words: Union[str, List[str], List[int]] = None,
+                 keywords = None,
+                 perturb=False,
+                 with_grad=False):
+        torch.set_grad_enabled(with_grad)
+        if z.dim() == 1:
+            z = z.unsqueeze(0)
+
+        if bad_words is not None:
+            if isinstance(bad_words, str):
+                bad_words = [bad_words]
+            if isinstance(bad_words[0], str):
+                bad_words_ids = self.tgt_tokenizers.get_ids(bad_words)
+            else:
+                bad_words_ids = bad_words
+        else:
+            bad_words_ids = None
+
+        if perturb:
+            return self.tgt_tokenizers.decode(self.model.generatePerturb(
+                z=z,
+                num_beams=num_beams,
+                max_tokens=max_tokens,
+                bad_words_ids=bad_words_ids,
+                with_grad=with_grad))
+
+        if keywords is not None:
+            return self.tgt_tokenizers.decode(self.model.generate(
+                z=z,
+                num_beams=num_beams,
+                max_tokens=max_tokens,
+                bad_words_ids=bad_words_ids,
+                keywords=keywords))
+        
+        return self.tgt_tokenizers.decode(self.model.generate(
+                z=z,
+                num_beams=num_beams,
+                max_tokens=max_tokens,
+                bad_words_ids=bad_words_ids))
+
