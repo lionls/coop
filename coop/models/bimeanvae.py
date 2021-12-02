@@ -268,7 +268,7 @@ class BiMeanVAE(Model):
         log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)
 
         if timestep > 1:
-          pert_log_softmax, pert_state = self.perturb(self, last_predictions, state, log_softmax)
+          pert_log_softmax, pert_state = self.perturb(last_predictions, state, log_softmax)
 
           log_softmax = -(((-pert_log_softmax) ** gm_scale) * (
                     (-log_softmax) ** (1 - gm_scale)))  # + SMALL_CONST
