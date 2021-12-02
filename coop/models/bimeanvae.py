@@ -47,6 +47,7 @@ class BiMeanVAE(Model):
 
         self.SMALL_CONST = 1e-15
         self.one_hot_bows_vectors = []
+        self.gm_scale=0.9
 
         self.embed = nn.Embedding(vocab_size, embedding_dim)
         self.encoder = nn.LSTM(embedding_dim, hidden_size // 2, num_layers, batch_first=True, bidirectional=True)
@@ -195,7 +196,7 @@ class BiMeanVAE(Model):
             x = x.to(device)
         return Variable(x, requires_grad=requires_grad, volatile=volatile)
 
-    def perturb(self, last_predictions, state, unpert_log, num_iterations=3, stepsize=0.1, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {},gm_scale=0.1):
+    def perturb(self, last_predictions, state, unpert_log, num_iterations=3, stepsize=0.1, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {}):
         z = state["z"]
         hx = state["hx"]
         cx = state["cx"]
@@ -262,7 +263,6 @@ class BiMeanVAE(Model):
     def stepPerturb(self,
              last_predictions,
              state, timestep=0):
-        gm_scale = 0.5
 
         z = state["z"]
         hx, cx = self.decoder(torch.cat((self.embed(last_predictions), z), dim=-1), (state["hx"], state["cx"]))
@@ -272,8 +272,8 @@ class BiMeanVAE(Model):
         if timestep > 1:
           pert_log_softmax, pert_state = self.perturb(last_predictions, state, log_softmax)
 
-          log_softmax = -(((-pert_log_softmax) ** gm_scale) * (
-                    (-log_softmax) ** (1 - gm_scale)))  # + SMALL_CONST
+          log_softmax = -(((-pert_log_softmax) ** self.gm_scale) * (
+                    (-log_softmax) ** (1 - self.gm_scale)))  # + SMALL_CONST
             
 
         if self.bad_words:
