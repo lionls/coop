@@ -43,6 +43,9 @@ class BiMeanVAE(Model):
         self.bos_id = bos_id
         self.eos_id = eos_id
 
+        self.SMALL_CONST = 1e-15
+        self.one_hot_bows_vectors = []
+
         self.embed = nn.Embedding(vocab_size, embedding_dim)
         self.encoder = nn.LSTM(embedding_dim, hidden_size // 2, num_layers, batch_first=True, bidirectional=True)
 
@@ -161,3 +164,117 @@ class BiMeanVAE(Model):
             return 0.
         else:
             return min((step - s) / s, 1)
+
+
+    def generatePerturb(self,
+                 z: torch.Tensor,
+                 num_beams: int = 4,
+                 max_tokens: int = 256,
+                 bad_words_ids: List[int] = None):
+        self.eval()
+        if bad_words_ids:
+            self.bad_words.update(bad_words_ids)
+        bz, device = len(z), z.device
+        start_predictions = torch.full((bz,), fill_value=self.bos_id, dtype=torch.long, device=device)
+        hx, cx = torch.chunk(self.proj_dec(z), 2, dim=-1)
+        decoder_state = {"z": z, "hx": hx, "cx": cx}
+        self.beam.beam_size = num_beams
+        self.beam.max_steps = max_tokens
+        all_top_k_predictions, _ = self.beam.search(start_predictions,
+                                                    decoder_state,
+                                                    self.stepPerturb)
+        self.bad_words.clear()
+        return all_top_k_predictions[:, 0]
+
+    def to_var(self, x, requires_grad=False, volatile=False, device='cuda'):
+        if torch.cuda.is_available() and device == 'cuda':
+            x = x.cuda()
+        elif device != 'cuda':
+            x = x.to(device)
+        return Variable(x, requires_grad=requires_grad, volatile=volatile)
+
+    def perturb(self, last_predictions, state, unpert_log, num_iterations=3, stepsize=0.1, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {},gm_scale=0.1):
+        z = state["z"]
+        hx = state["hx"]
+        cx = state["cx"]
+        grad_accumulator = [
+                (np.zeros(p.shape).astype("float32"))
+                for p in z
+            ]
+        grad_clean = np.zeros(z.shape).astype("float32")
+
+        accumulated_hidden = 0
+        loss_per_iter = []
+        new_accumulated_hidden = None
+
+        curr = self.to_var(torch.from_numpy(z.cpu().detach().numpy()),requires_grad=True, device=device)
+
+        for i in range(num_iterations):
+                print("Iteration ", i + 1)
+                curr_perturbation = [
+                    self.to_var(torch.from_numpy(p_), requires_grad=True, device=device)
+                    for p_ in grad_accumulator
+                ]
+
+                curr_length=1
+
+                hx, cx = self.decoder(torch.cat((self.embed(last_predictions), curr), dim=-1), (hx, cx))
+                log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)
+                
+
+                loss = 0.0
+                loss_list = []
+                if True:#loss_type == PPLM_BOW or loss_type == PPLM_BOW_DISCRIM:
+                    for one_hot_bow in self.one_hot_bows_vectors:
+                        bow_logits = torch.mm(log_softmax, torch.t(one_hot_bow))
+                        bow_loss = -torch.log(-torch.sum(bow_logits))
+                        loss += bow_loss
+                        loss_list.append(bow_loss)
+                        print(" pplm_bow_loss:", loss.data.cpu().numpy())
+
+                kl_loss = 0.0
+                if kl_scale > 0.0:
+                    unpert_probs = (
+                            unpert_log + self.SMALL_CONST *
+                            (unpert_log <= self.SMALL_CONST).float().to(device).detach()
+                    )
+                    correction = self.SMALL_CONST * (log_softmax <= self.SMALL_CONST).float().to(
+                        device).detach()
+                    corrected_probs = log_softmax + correction.detach()
+                    kl_loss = kl_scale * (
+                        (corrected_probs * (corrected_probs / unpert_probs).log()).sum()
+                    )
+                    
+                    print(' kl_loss', kl_loss.data.cpu().numpy())
+                    loss += kl_loss
+
+                loss_per_iter.append(loss.data.cpu().numpy())
+                
+                loss.backward(retain_graph=True)
+                grad = -stepsize *curr.grad.data.cpu().detach().numpy()
+                curr = self.to_var(torch.from_numpy(curr.cpu().detach().numpy()+grad),requires_grad=True, device=device)
+
+        new_state = {"z":z, "hx":hx, "cx":cx}
+        return log_softmax, new_state
+
+    def stepPerturb(self,
+             last_predictions,
+             state, timestep=0):
+        gm_scale = 0.5
+
+        z = state["z"]
+        hx, cx = self.decoder(torch.cat((self.embed(last_predictions), z), dim=-1), (state["hx"], state["cx"]))
+        new_state = {"z": z, "hx": hx, "cx": cx}
+        log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)
+
+        if timestep > 1:
+          pert_log_softmax, pert_state = self.perturb(self, last_predictions, state, log_softmax)
+
+          log_softmax = -(((-pert_log_softmax) ** gm_scale) * (
+                    (-log_softmax) ** (1 - gm_scale)))  # + SMALL_CONST
+            
+
+        if self.bad_words:
+            log_softmax[:, list(self.bad_words)] = float("-inf")
+
+        return log_softmax, new_state
