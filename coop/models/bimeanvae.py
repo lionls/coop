@@ -208,7 +208,7 @@ class BiMeanVAE(Model):
                     (np.zeros(p.shape).astype("float32"))
                     for p in hx
                 ]
-            grad_clean = np.zeros(z.shape).astype("float32")
+            grad_clean = np.zeros(hx.shape).astype("float32")
 
             accumulated_hidden = 0
             loss_per_iter = []
