@@ -48,6 +48,7 @@ class BiMeanVAE(Model):
         self.SMALL_CONST = 1e-15
         self.one_hot_bows_vectors = []
         self.gm_scale=0.9
+        self.stepsize=0.1
 
         self.embed = nn.Embedding(vocab_size, embedding_dim)
         self.encoder = nn.LSTM(embedding_dim, hidden_size // 2, num_layers, batch_first=True, bidirectional=True)
@@ -197,7 +198,7 @@ class BiMeanVAE(Model):
             x = x.to(device)
         return Variable(x, requires_grad=requires_grad, volatile=volatile)
 
-    def perturb(self, last_predictions, state, unpert_log, num_iterations=3, stepsize=0.1, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {}):
+    def perturb(self, last_predictions, state, unpert_log, num_iterations=3, device="cuda:0",num_classes=32000,kl_scale=0.0,log_probs_after_end=None,sampler_state = {}):
         torch.set_grad_enabled(True)
         with torch.enable_grad():
             z = state["z"]
@@ -205,7 +206,7 @@ class BiMeanVAE(Model):
             cx = state["cx"]
             grad_accumulator = [
                     (np.zeros(p.shape).astype("float32"))
-                    for p in z
+                    for p in hx
                 ]
             grad_clean = np.zeros(z.shape).astype("float32")
 
@@ -213,7 +214,7 @@ class BiMeanVAE(Model):
             loss_per_iter = []
             new_accumulated_hidden = None
 
-            curr = self.to_var(torch.from_numpy(z.cpu().detach().numpy()),requires_grad=True, device=device)
+            curr = self.to_var(torch.from_numpy(hx.cpu().detach().numpy()),requires_grad=True, device=device)
 
             for i in range(num_iterations):
                     #print("Iteration ", i + 1)
@@ -222,7 +223,7 @@ class BiMeanVAE(Model):
                         for p_ in grad_accumulator
                     ]
 
-                    hx, cx = self.decoder(torch.cat((self.embed(last_predictions), curr), dim=-1), (hx, cx))
+                    hx, cx = self.decoder(torch.cat((self.embed(last_predictions), z), dim=-1), (curr, cx))
                     log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)               
 
                     loss = 0.0
@@ -254,7 +255,7 @@ class BiMeanVAE(Model):
                     loss_per_iter.append(loss.data.cpu().numpy())
                     
                     loss.backward(retain_graph=True)
-                    grad = -stepsize *curr.grad.data.cpu().detach().numpy()
+                    grad = -self.stepsize *curr.grad.data.cpu().detach().numpy()
                     curr = self.to_var(torch.from_numpy(curr.cpu().detach().numpy()+grad),requires_grad=True, device=device)
 
             new_state = {"z":z, "hx":hx, "cx":cx}
