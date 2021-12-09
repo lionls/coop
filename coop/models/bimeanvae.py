@@ -206,15 +206,15 @@ class BiMeanVAE(Model):
             cx = state["cx"]
             grad_accumulator = [
                     (np.zeros(p.shape).astype("float32"))
-                    for p in hx
+                    for p in cx
                 ]
-            grad_clean = np.zeros(hx.shape).astype("float32")
+            grad_clean = np.zeros(cx.shape).astype("float32")
 
             accumulated_hidden = 0
             loss_per_iter = []
             new_accumulated_hidden = None
 
-            curr = self.to_var(torch.from_numpy(hx.cpu().detach().numpy()),requires_grad=True, device=device)
+            curr = self.to_var(torch.from_numpy(cx.cpu().detach().numpy()),requires_grad=True, device=device)
 
             for i in range(num_iterations):
                     #print("Iteration ", i + 1)
@@ -223,7 +223,7 @@ class BiMeanVAE(Model):
                         for p_ in grad_accumulator
                     ]
 
-                    hx, cx = self.decoder(torch.cat((self.embed(last_predictions), z), dim=-1), (curr, cx))
+                    hx, cx = self.decoder(torch.cat((self.embed(last_predictions), z), dim=-1), (hx, curr))
                     log_softmax = torch.nn.functional.log_softmax(self.output_layer(hx), dim=-1)               
 
                     loss = 0.0
